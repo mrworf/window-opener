@@ -1,0 +1,52 @@
+# List our endpoints that we'll use
+# the "local" endpoint is always availble
+endpoints:
+  remote:
+    url: http://10.0.3.129:8080
+    token: {remotetoken}
+
+# List of supported "programs"
+# All of them support start/stop actions
+programs:
+  steam:
+    start:
+      - method: execute
+        arguments:
+        - C:\Program Files\Parsec\parsecd.exe
+        - peer_id={peerid}
+        - client_windowed=0:client_overlay=0:client_immersive=1
+      - method: delay
+        arguments: 4
+      - method: execute
+        endpoint: remote
+        arguments:
+        - C:\Program Files (x86)\Steam\steam.exe
+        - -start
+        - steam://open/bigpicture
+    stop:
+      - method: close window
+        arguments: Parsec
+      - method: close window
+        endpoint: remote
+      - method: delay
+        arguments: 5
+      - method: close window
+        arguments: Parsec
+      - method: close window
+        arguments: Steam
+        endpoint: remote
+  jitsi:
+    start:
+      - method: execute
+        arguments:
+        - C:\Program Files\Google\Chrome\Application\chrome.exe
+        - -kiosk
+        - https://jitsi-meet.sensenet.nu/familytime
+      - method: delay
+        arguments: 5
+      - method: sendkeys
+        arguments: "{{ENTER}}"
+      - method: delay
+        arguments: 1
+      - method: sendkeys
+        arguments: "{{ENTER}}"
