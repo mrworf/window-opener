@@ -272,3 +272,79 @@ Likewise, if your main instance won't ever be used by another instance, using `-
 is also recommended.
 
 `--debug` is typically not needed unless you're debugging an issue.
+
+# Examples
+
+The following secion lists examples of how this can be used.
+
+## Combining parsec and steam big picture
+
+```
+programs:
+  steam:
+    start:
+      - method: execute
+        arguments:
+        - C:\Program Files\Parsec\parsecd.exe
+        - peer_id={peerid}
+        - client_windowed=0:client_overlay=0:client_immersive=1
+      - method: delay
+        arguments: 4
+      - method: execute
+        endpoint: remote
+        arguments:
+        - C:\Program Files (x86)\Steam\steam.exe
+        - -start
+        - steam://open/bigpicture
+    stop:
+      - method: close window
+        arguments: Parsec
+      - method: close window
+        endpoint: remote
+      - method: delay
+        arguments: 5
+      - method: close window
+        arguments: Parsec
+      - method: close window
+        arguments: Steam
+        endpoint: remote
+```
+
+This will launch parsec to automatically connect to your main gaming rigg, wait for a spell and then launch steam in big picture mode. When stopping, it closes parsec (twice, once to kill streaming and once to close the window with the computer list).
+
+Steam is closed twice as well, first time, it closes the active window. This will shutdown 99.9% of all running games (or steam big picture if no game was running). The second time, we specifically close the window called `Steam`. This is for the case a game was running. If you don't do the 2nd time, then big picture will continue to show on the remote computer.
+
+## Launching video conference
+
+```
+programs:
+  jitsi:
+    start:
+      - method: execute
+        arguments:
+        - C:\Program Files\Google\Chrome\Application\chrome.exe
+        - -kiosk
+        - {jitsi_url}
+      - method: delay
+        arguments: 5
+      - method: sendkeys
+        arguments: "{{ENTER}}"
+      - method: delay
+        arguments: 1
+      - method: sendkeys
+        arguments: "{{ENTER}}"
+```
+
+This launches chrome in kiosk mode, taking over the entire screen without any UI elements of its own. It then loads the URL
+specified in the `secrets.yml` `jitsi_url` key.
+
+It then waits 5 seconds and sends two `ENTER` keypresses with a 1 second delay. This is to authenticate with jitsi's
+backend (chrome has the authentication stored and will prefill for me).
+
+As you can see here, no `stop:` section is defined. That's because the `execute` method will kill it using
+the PID it got on launch. A neat way to avoid shutting down other chrome instances.
+
+# The future
+Obviously this is just scraping the surface. There's many improvements that can be done, like activating windows based on name or waiting for a window to show up, etc. But until there's a need for it, it's not likely to get implemented.
+
+As always, feel free to submit PRs for improvements.
