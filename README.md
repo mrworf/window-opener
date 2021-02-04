@@ -11,7 +11,7 @@ the remote desktop.
 
 ## Why another tool?
 
-Unlike AutoIt and other automation tools, this provides two crucial features (for me anyhow)
+Unlike AutoIt and other automation tools, this provides three crucial features (for me anyhow)
 
 1. REST API
    To be able to trigger the automation using REST API is crucial to make it work with my existing
