@@ -139,7 +139,7 @@ class Action:
     if self.method == Action.ACTION_EXECUTE:
       ret = self.endpoint.execute(*self.arguments)
       if ret == -1:
-        logging.error(f'Unable to execute command ({*self.arguments})')
+        logging.error(f'Unable to execute command ({self.arguments})')
         ret = None
       else:
         self.pid = ret
