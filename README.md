@@ -139,7 +139,13 @@ arguments: <parameters for the method>
   This can be a fractional value for sub 1 second delays
 - close window
   Closes a specified window (provided by arguments) or if blank,
-  will close the current active window
+  will close the current active window.
+
+  This method takes a few options:
+  - waitforit: When true, will delay next action until the window is created (and then closed)
+  - whenactive: If true, will delay next action until the window is the active window (and then close it)
+  - maxwait: Maximum of time to wait for above options (in seconds). Default is forever
+
 - kill app
   Kills all instances of an application defined by the `arguments`.
   Use task manager (details tab) to locate the name of the application you wish
@@ -154,6 +160,19 @@ arguments: <parameters for the method>
   And since the YAML standard allow use of curly braces as well, you must enclose it with quotation marks.
   This means that in order to sennd ENTER (`{ENTER}`) you must write `"{{ENTER}}"` or it will not work.
   You don't have to do `sendkeys` per key, you can have it send entire strings at a time.
+- focus
+  Sets focus to the defined window. It will also bring it to the front.
+  Note that if the window is minimized, it will only get focus, it will not be visible.
+
+  This method takes a few options:
+  - waitforit: When true, will delay next action until the window is created (and then closed)
+  - maxwait: Maximum of time to wait for above options (in seconds). Default is forever
+  - maximize: When true, will also maximize the window to take the entire screen
+  - restore: When true, restores the window. If it was minimized, it will show up in the last known position and size, if it's maximized, it will revert to last known size and position.
+
+  Note, maximize and restore are mutually exclusive with maximize taking priority over restore.
+
+
 
 `endpoint` specifies where to perform the defined action. If omitted, `local` is assumed,
 meaning it will run on the computer which is hosting this service.
@@ -271,11 +290,11 @@ the instance as a chained instance to another one, using `--program=no` is recom
 Likewise, if your main instance won't ever be used by another instance, using `--lowlevel=no`
 is also recommended.
 
-`--debug` is typically not needed unless you're debugging an issue.
+`--debug` is typically not needed unless you're debugging an issue. Debug WILL however, disable the systray icon and allow you to stop the server using `CTRL-C`.
 
 # Examples
 
-The following secion lists examples of how this can be used.
+The following section lists examples of how this can be used.
 
 ## Combining parsec and steam big picture
 
@@ -345,6 +364,10 @@ As you can see here, no `stop:` section is defined. That's because the `execute`
 the PID it got on launch. A neat way to avoid shutting down other chrome instances.
 
 # The future
+
+- Allow reload of `config.yml` and `secrets.yml` via REST API
+- Log to file instead of stdout
+
 Obviously this is just scraping the surface. There's many improvements that can be done, like activating windows based on name or waiting for a window to show up, etc. But until there's a need for it, it's not likely to get implemented.
 
 As always, feel free to submit PRs for improvements.

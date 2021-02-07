@@ -1,3 +1,10 @@
+# Tooggle for the two endpoints which are
+# exposed. If not specified, it's assumed
+# to be true.
+options:
+  program: false
+  lowlevel: true
+
 # List our endpoints that we'll use
 # the "local" endpoint is always availble
 endpoints:
@@ -28,12 +35,17 @@ programs:
         arguments: Parsec
       - method: close window
         endpoint: remote
-      - method: delay
-        arguments: 5
       - method: close window
         arguments: Parsec
+        options:
+          waitforit: True
+          maxwait: 5
       - method: close window
-        arguments: Steam
+        arguments:
+        - Steam
+        options:
+          whenactive: True
+          maxwait: 5
         endpoint: remote
   jitsi:
     start:
@@ -41,7 +53,11 @@ programs:
         arguments:
         - C:\Program Files\Google\Chrome\Application\chrome.exe
         - -kiosk
-        - https://jitsi-meet.sensenet.nu/familytime
+        - {videochannel_family}
+      - method: focus
+        arguments: Notepad
+        options:
+          maxwait: 5
       - method: delay
         arguments: 5
       - method: sendkeys

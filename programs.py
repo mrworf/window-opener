@@ -83,13 +83,17 @@ class Program:
     if method not in Action.METHOD_START:
       logging.error(f'No such method "{method}" for start actions')
       return False
-    self.START_ACTIONS.append(Action(endpoint, method, args))
+    action = Action(endpoint, method, args)
+    self.START_ACTIONS.append(action)
+    return action
 
   def addStopAction(self, endpoint, method, *arguments):
     if method not in Action.METHOD_STOP:
       logging.error(f'No such method "{method}" for stop actions')
       return False
-    self.POST_STOP_ACTIONS.append(Action(endpoint, method, arguments))
+    action = Action(endpoint, method, arguments)
+    self.POST_STOP_ACTIONS.append(action)
+    return action
 
   def addPreStopAction(self, endpoint, method, *arguments):
     if method not in Action.METHOD_STOP:
@@ -117,15 +121,20 @@ class Action:
   ACTION_KILL_PID = 'kill pid'
   ACTION_CLOSE_WINDOW = 'close window'
   ACTION_SENDKEYS = 'sendkeys'
+  ACTION_FOCUS = 'focus'
 
-  METHOD_START = [ACTION_EXECUTE, ACTION_DELAY, ACTION_SENDKEYS]
-  METHOD_STOP = [ACTION_DELAY, ACTION_CLOSE_WINDOW, ACTION_KILL_PID, ACTION_KILL_APP, ACTION_SENDKEYS]
+  METHOD_START = [ACTION_EXECUTE, ACTION_DELAY, ACTION_SENDKEYS, ACTION_FOCUS]
+  METHOD_STOP = [ACTION_DELAY, ACTION_CLOSE_WINDOW, ACTION_KILL_PID, ACTION_KILL_APP, ACTION_SENDKEYS, ACTION_FOCUS]
 
   def __init__(self, endpoint, method, *arguments):
     self.endpoint = endpoint
     self.method = method.lower()
     self.arguments = arguments
+    self.options = None
     self.pid = -1
+
+  def setOptions(self, options):
+    self.options = options
 
   def finish(self):
     if self.pid == -1:
@@ -137,7 +146,7 @@ class Action:
   def execute(self):
     ret = None
     if self.method == Action.ACTION_EXECUTE:
-      ret = self.endpoint.execute(*self.arguments)
+      ret = self.endpoint.execute(self.options, *self.arguments)
       if ret == -1:
         logging.error(f'Unable to execute command ({self.arguments})')
         ret = None
@@ -146,11 +155,13 @@ class Action:
     elif self.method == Action.ACTION_DELAY:
       time.sleep(float(*self.arguments[0]))
     elif self.method == Action.ACTION_KILL_APP:
-      self.endpoint.kill_app(*self.arguments[0])
+      self.endpoint.kill_app(self.options, *self.arguments[0])
     elif self.method == Action.ACTION_KILL_PID:
-      self.endpoint.kill_pid(*self.arguments[0])
+      self.endpoint.kill_pid(self.options, *self.arguments[0])
     elif self.method == Action.ACTION_CLOSE_WINDOW:
-      self.endpoint.close_window(*self.arguments[0])
+      self.endpoint.close_window(self.options, *self.arguments[0])
     elif self.method == Action.ACTION_SENDKEYS:
-      self.endpoint.sendkeys(*self.arguments[0])
+      self.endpoint.sendkeys(self.options, *self.arguments[0])
+    elif self.method == Action.ACTION_FOCUS:
+      self.endpoint.focus(self.options, *self.arguments[0])
     return ret

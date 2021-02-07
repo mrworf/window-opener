@@ -22,7 +22,7 @@ from programs import ProgramManager, Action
 class Config:
   def __init__(self):
     self.LOWLEVEL_TOKEN = None
-    self.pm = ProgramManager()
+    self.pm = None
     self.secrets = {}
 
   def getToken(self):
@@ -32,6 +32,10 @@ class Config:
     return self.pm
 
   def load(self):
+    # Wipe out existing configuration
+    self.pm = ProgramManager()
+    self.secrets = {}
+
     # First, load all secrets (if any)
     if os.path.exists('secrets.yml'):
       with open('secrets.yml') as f:
@@ -62,6 +66,7 @@ class Config:
             endpoint = self.pm.getEndpoint(item.get('endpoint', 'local').lower())
             method = item.get('method', '').lower()
             arguments = item.get('arguments', [])
+            options = item.get('options', None)
             if method not in Action.METHOD_START:
               logging.error(f"{method} isn't a supported start method")
               continue
@@ -70,12 +75,15 @@ class Config:
               continue
             if not isinstance(arguments, list):
               arguments = [arguments]
-            prg.addStartAction(endpoint, method, *arguments)
+            action = prg.addStartAction(endpoint, method, *arguments)
+            if options:
+              action.setOptions(options)
 
           for item in data['programs'][name].get('stop', []):
             endpoint = self.pm.getEndpoint(item.get('endpoint', 'local').lower())
             method = item.get('method', '').lower()
             arguments = item.get('arguments', [])
+            options = item.get('options', None)
             if method not in Action.METHOD_STOP:
               logging.error(f"{method} isn't a supported stop method")
               continue
@@ -84,4 +92,6 @@ class Config:
               continue
             if not isinstance(arguments, list):
               arguments = [arguments]
-            prg.addStopAction(endpoint, method, *arguments)
+            action = prg.addStopAction(endpoint, method, *arguments)
+            if options:
+              action.setOptions(options)
