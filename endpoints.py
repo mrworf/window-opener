@@ -16,6 +16,7 @@
 import subprocess
 import psutil
 import win32gui
+import win32api
 import win32con
 import requests
 import win32com.client
@@ -51,42 +52,45 @@ class LocalEndpoint:
         logging.exception('Unknown error')
     return ret
 
-  def close_window(self, options, *args):
-    logging.debug(f'{args}')
-    if args:
-      window = args[0]
-    else:
-      window = None
+  def _wait_for_it(self, timeout, checkFunc, userData=None):
+    timer = 0
+    result = checkFunc(userData)
+    while not result:
+      time.sleep(0.1)
+      timer += 0.1
+      if timeout > 0 and timer >= timeout:
+        break
+      result = checkFunc(userData)
+    return result
+
+  def close_window(self, options, window=None):
     ret = False
     logging.debug(f'close_window({window})')
     if window:
       handle = win32gui.FindWindow(None, window)
       if not handle and options.get('waitforit', False):
-        timeout = options.get('maxwait', 0)
-        logging.info(f'Waiting for "{window}" to appear (for max {timeout} seconds)')
-        timer = 0
-        while not handle:
-          time.sleep(0.1)
-          timer += 0.1
-          if timeout > 0 and timer >= timeout:
-            logging.info(f'Timed out waiting for window "{window}" to appear. Max wait was {timeout} seconds')
-            handle = 0
-            break
-          handle = win32gui.FindWindow(None, window)
+        logging.info(f'Waiting for "{window}" to appear')
+        handle = self._wait_for_it(options.get('maxwait', 0), win32gui.FindWindow, window)
+        if not handle:
+          logging.info(f'Timed out waiting for window "{window}" to appear.')
 
       if handle and options.get('whenactive', False):
-        timeout = options.get('maxwait', 0)
-        logging.info(f'Waiting for "{window}" to become the active window (for max {timeout} seconds)')
-        looking = None
-        timer = 0
-        while looking != handle:
-          time.sleep(0.1)
-          timer += 0.1
-          if timeout > 0 and timer >= timeout:
-            logging.info(f'Timed out waiting for window "{window}" to get focus. Max wait was {timeout} seconds')
-            handle = 0 # So we don't close it
-            break
-          looking = win32gui.GetForegroundWindow()
+        logging.info(f'Waiting for "{window}" to become the active window')
+        if not self._wait_for_it(options.get('maxwait', 0), lambda wnd: win32gui.GetForegroundWindow() == wnd, window):
+          logging.info(f'Timed out waiting for window "{window}" to get focus.')
+          handle = 0
+
+      if handle and options.get('whenvisible', False):
+        logging.info(f'Waiting for "{window}" to become visible')
+        if not self._wait_for_it(options.get('maxwait', 0), win32gui.IsWindowVisible, window):
+          logging.info(f'Timed out waiting for window "{window}" to become visible.')
+          handle = 0
+
+      if handle and options.get('wheniconic', False):
+        logging.info(f'Waiting for "{window}" to be iconic (minimized)')
+        if not self._wait_for_it(options.get('maxwait', 0), win32gui.IsIconic, window):
+          logging.info(f'Timed out waiting for window "{window}" to become iconic.')
+          handle = 0
     else:
       handle = win32gui.GetForegroundWindow()
 
@@ -123,17 +127,22 @@ class LocalEndpoint:
     if window:
       handle = win32gui.FindWindow(None, window)
       if not handle and options.get('waitforit', False):
-        timeout = options.get('maxwait', 0)
-        logging.info(f'Waiting for "{window}" to appear (for max {timeout} seconds)')
-        timer = 0
-        while not handle:
-          time.sleep(0.1)
-          timer += 0.1
-          if timeout > 0 and timer >= timeout:
-            logging.info(f'Timed out waiting for window "{window}" to appear. Max wait was {timeout} seconds')
-            handle = 0
-            break
-          handle = win32gui.FindWindow(None, window)
+        logging.info(f'Waiting for "{window}" to appear')
+        handle = self._wait_for_it(options.get('maxwait', 0), win32gui.FindWindow, window)
+        if not handle:
+          logging.info(f'Timed out waiting for window "{window}" to appear.')
+
+      if handle and options.get('whenvisible', False):
+        logging.info(f'Waiting for "{window}" to become visible')
+        if not self._wait_for_it(options.get('maxwait', 0), win32gui.IsWindowVisible, window):
+          logging.info(f'Timed out waiting for window "{window}" to become visible.')
+          handle = 0
+
+      if handle and options.get('wheniconic', False):
+        logging.info(f'Waiting for "{window}" to be iconic (minimized)')
+        if not self._wait_for_it(options.get('maxwait', 0), win32gui.IsIconic, window):
+          logging.info(f'Timed out waiting for window "{window}" to become iconic.')
+          handle = 0
 
     if handle:
       pythoncom.CoInitialize()
@@ -153,6 +162,20 @@ class LocalEndpoint:
     else:
       logging.warning(f'Cannot find window "{window}"')
     return ret
+
+  def mouse_move(self, options, x, y):
+    win32api.SetCursorPos((x,y))
+    leftclicks = options.get('leftclick', 0)
+    rightclicks = options.get('rightclick', 0)
+    for i in range(0, leftclicks):
+      win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,x,y,0,0)
+      win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN,x,y,0,0)
+      win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,x,y,0,0)
+    for i in range(0, rightclicks):
+      win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP,x,y,0,0)
+      win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN,x,y,0,0)
+      win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP,x,y,0,0)
+    return True
 
 class RemoteEndpoint:
   def __init__(self, name, url, token):
@@ -180,7 +203,7 @@ class RemoteEndpoint:
       return self._remote_call('kill pid', options, pid)
     return False
 
-  def close_window(self, options, window):
+  def close_window(self, options, window=None):
     return self._remote_call('close window', options, window)
 
   def kill_app(self, options, appname):
@@ -191,3 +214,6 @@ class RemoteEndpoint:
 
   def focus(self, options, window):
     return self._remote_call('focus', options, window)
+
+  def mouse_move(self, options, x, y):
+    return self._remote_call('mouse move', options, x, y)

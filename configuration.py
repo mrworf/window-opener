@@ -31,6 +31,14 @@ class Config:
   def getProgramManager(self):
     return self.pm
 
+  def _read_with_substitution(self, file, subst):
+    if os.path.exists(file):
+      with open(file) as f:
+        txt = f.read()
+        data = yaml.safe_load(txt.format_map(subst))
+        return data
+    return {}
+
   def load(self):
     # Wipe out existing configuration
     self.pm = ProgramManager()
@@ -52,46 +60,66 @@ class Config:
     if not self.LOWLEVEL_TOKEN:
       logging.warning('Without token defined in secrets.yml, the REST endpoints are disabled.')
 
-    if os.path.exists('config.yml'):
-      with open('config.yml') as f:
-        txt = f.read()
-        data = yaml.safe_load(txt.format_map(self.secrets))
-        if 'endpoints' in data:
-          # Create end-points
-          for name in data['endpoints']:
+    data = self._read_with_substitution('config.yml', self.secrets)
+    if data:
+      if 'endpoints' in data:
+        # Create end-points
+        for name in data['endpoints']:
+          if 'url' in data['endpoints'][name] and 'token' in data['endpoints'][name]:
             self.pm.createEndpoint(name.lower(), data['endpoints'][name]['url'], data['endpoints'][name]['token'])
-        for name in data.get('programs', {}):
-          prg = self.pm.createProgram(name)
-          for item in data['programs'][name].get('start', []):
-            endpoint = self.pm.getEndpoint(item.get('endpoint', 'local').lower())
-            method = item.get('method', '').lower()
-            arguments = item.get('arguments', [])
-            options = item.get('options', None)
-            if method not in Action.METHOD_START:
-              logging.error(f"{method} isn't a supported start method")
-              continue
-            if not endpoint:
-              logging.error(f"endpoint isn't available for program {name}")
-              continue
-            if not isinstance(arguments, list):
-              arguments = [arguments]
-            action = prg.addStartAction(endpoint, method, *arguments)
-            if options:
-              action.setOptions(options)
+          else:
+            logging.error(f'Endpoint "{name}" cannot be created since it\'s missing url, token or both')
 
-          for item in data['programs'][name].get('stop', []):
-            endpoint = self.pm.getEndpoint(item.get('endpoint', 'local').lower())
-            method = item.get('method', '').lower()
-            arguments = item.get('arguments', [])
-            options = item.get('options', None)
-            if method not in Action.METHOD_STOP:
-              logging.error(f"{method} isn't a supported stop method")
-              continue
-            if not endpoint:
-              logging.error(f"endpoint isn't available for program {name}")
-              continue
-            if not isinstance(arguments, list):
-              arguments = [arguments]
-            action = prg.addStopAction(endpoint, method, *arguments)
-            if options:
-              action.setOptions(options)
+      for name in data.get('programs', {}):
+
+        # Make sure we substitute this entry with the included one if defined
+        if 'include' in data['programs'][name]:
+          replace = self._read_with_substitution(
+            data['programs'][name]['include'],
+            data['programs'][name].get('parameters', {})
+          )
+          if not replace:
+            logging.error(f'File {data["programs"][name]["include"]} is missing or corrupt')
+            continue
+          data['programs'][name] = replace
+
+        if 'start' not in data['programs'][name] and 'stop' not in data['programs'][name]:
+          logging.error(f'Program "{name}" doesn\'t have any defined actions')
+          continue
+
+        prg = self.pm.createProgram(name)
+        for item in data['programs'][name].get('start', []):
+          endpoint = self.pm.getEndpoint(item.get('endpoint', 'local').lower())
+          method = item.get('method', '').lower()
+          arguments = item.get('arguments', [])
+          options = item.get('options', None)
+          if method not in Action.METHOD_START:
+            logging.error(f"{method} isn't a supported start method (program \"{data['programs'][name]}\")")
+            continue
+          if not endpoint:
+            logging.error(f"endpoint \"{item.get('endpoint', 'local').lower()}\" isn't available (program \"{data['programs'][name]}\")")
+            continue
+          if not isinstance(arguments, list):
+            arguments = [arguments]
+          action = prg.addStartAction(endpoint, method, *arguments)
+          if options:
+            action.setOptions(options)
+
+        for item in data['programs'][name].get('stop', []):
+          endpoint = self.pm.getEndpoint(item.get('endpoint', 'local').lower())
+          method = item.get('method', '').lower()
+          arguments = item.get('arguments', [])
+          options = item.get('options', None)
+          if method not in Action.METHOD_STOP:
+            logging.error(f"{method} isn't a supported stop method (program \"{data['programs'][name]}\")")
+            continue
+          if not endpoint:
+            logging.error(f"endpoint \"{item.get('endpoint', 'local').lower()}\" isn't available (program \"{data['programs'][name]}\")")
+            continue
+          if not isinstance(arguments, list):
+            arguments = [arguments]
+          action = prg.addStopAction(endpoint, method, *arguments)
+          if options:
+            action.setOptions(options)
+    else:
+      logging.error('No "config.yml" found')

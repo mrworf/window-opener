@@ -122,25 +122,26 @@ class Action:
   ACTION_CLOSE_WINDOW = 'close window'
   ACTION_SENDKEYS = 'sendkeys'
   ACTION_FOCUS = 'focus'
+  ACTION_MOUSE_MOVE = 'mouse move'
 
-  METHOD_START = [ACTION_EXECUTE, ACTION_DELAY, ACTION_SENDKEYS, ACTION_FOCUS]
-  METHOD_STOP = [ACTION_DELAY, ACTION_CLOSE_WINDOW, ACTION_KILL_PID, ACTION_KILL_APP, ACTION_SENDKEYS, ACTION_FOCUS]
+  METHOD_START = [ACTION_EXECUTE, ACTION_DELAY, ACTION_SENDKEYS, ACTION_FOCUS, ACTION_MOUSE_MOVE]
+  METHOD_STOP = [ACTION_DELAY, ACTION_CLOSE_WINDOW, ACTION_KILL_PID, ACTION_KILL_APP, ACTION_SENDKEYS, ACTION_FOCUS, ACTION_MOUSE_MOVE]
 
   def __init__(self, endpoint, method, *arguments):
     self.endpoint = endpoint
     self.method = method.lower()
     self.arguments = arguments
-    self.options = None
+    self.options = {}
     self.pid = -1
 
   def setOptions(self, options):
-    self.options = options
+    self.options = options if options else {}
 
   def finish(self):
     if self.pid == -1:
       logging.debug(f'{self.arguments} has no pid to kill')
       return
-    self.endpoint.kill_pid(self.pid)
+    self.endpoint.kill_pid({}, self.pid)
     self.pid = -1
 
   def execute(self):
@@ -164,4 +165,6 @@ class Action:
       self.endpoint.sendkeys(self.options, *self.arguments[0])
     elif self.method == Action.ACTION_FOCUS:
       self.endpoint.focus(self.options, *self.arguments[0])
+    elif self.method == Action.ACTION_MOUSE_MOVE:
+      self.endpoint.mouse_move(self.options, *self.arguments[0], *self.arguments[1])
     return ret

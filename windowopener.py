@@ -18,6 +18,7 @@ import logging
 import argparse
 from threading import Lock
 import ctypes
+import sys
 
 from programs import Action
 from endpoints import LocalEndpoint
@@ -31,12 +32,19 @@ parser.add_argument('--listen', default="0.0.0.0", help="Address to listen on")
 parser.add_argument('--debug', action='store_true', default=False, help='Enable loads more logging')
 parser.add_argument('--lowlevel', choices=['yes', 'no'], default='yes', help='Enable lowlevel REST API')
 parser.add_argument('--program', choices=['yes', 'no'], default='yes', help='Enable program REST API')
+parser.add_argument('--logfile', default=None, help="Log to file instead of stdout")
 cmdline = parser.parse_args()
 
+logfile = cmdline.logfile
+has_console = True
+if 'pythonw.exe' in sys.executable:
+  has_console = False
+  logfile = 'windowopener.log' if not cmdline.logfile else cmdline.logfile
+
 if cmdline.debug:
-  logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+  logging.basicConfig(filename=logfile, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 else:
-  logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+  logging.basicConfig(filename=logfile, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 config = Config()
 config.load()
@@ -104,6 +112,8 @@ def post_lowlevel(method):
       ret['result'] = ep.close_window(j['options'], j['arguments'][0])
     elif method == Action.ACTION_FOCUS:
       ret['result'] = ep.focus(j['options'], j['arguments'][0])
+    elif method == Action.ACTION_MOUSE_MOVE:
+      ret['result'] = ep.mouse_move(j['options'], j['arguments'][0], j['arguments'][1])
   result = jsonify(ret)
   result.status_code = 200
   return result
@@ -116,6 +126,19 @@ def onReload(systray):
     config.load()
     MessageBox(None, 'Configuration has been reloaded', 'WindowOpener', 0)
 
+def onAbout(systray):
+  MessageBox = ctypes.windll.user32.MessageBoxW
+  msg = f'''Simple REST API daemon to automate control of Windows.
+
+This daemon was launched with the following parameters:
+
+{cmdline}
+
+For more details, see https://github.com/mrworf/window-opener/
+'''
+  MessageBox(None, msg, 'WindowOpener', 0)
+
+
 # Prepare to run
 running = Lock()
 running.acquire()
@@ -124,11 +147,12 @@ server = WebServer()
 server.addRoute('/program', get_action, methods=['GET', 'POST'])
 server.addRoute('/lowlevel/<method>', post_lowlevel, methods=['POST'])
 
-systray = Menu(onReload, lambda _: running.release())
+systray = Menu(onReload, lambda _: running.release(), onAbout)
 
-if cmdline.debug:
+if has_console:
   server.run()
 else:
   server.start()
   systray.start()
   running.acquire()
+logging.info('Window Opener terminating gracefully')
