@@ -25,6 +25,7 @@ from endpoints import LocalEndpoint
 from configuration import Config
 from systray import Menu
 from server import WebServer
+from logger import StreamToLogger
 
 parser = argparse.ArgumentParser(description="WindowOpener - A windows REST API automation tool", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--port', default=8080, type=int, help="Port to listen on")
@@ -35,16 +36,23 @@ parser.add_argument('--program', choices=['yes', 'no'], default='yes', help='Ena
 parser.add_argument('--logfile', default=None, help="Log to file instead of stdout")
 cmdline = parser.parse_args()
 
+# This is CRUCIAL or pythonw.exe usage will be unpredictable
+
 logfile = cmdline.logfile
 has_console = True
 if 'pythonw.exe' in sys.executable:
   has_console = False
+  sys.stdout = StreamToLogger(logging.getLogger('STDOUT'), logging.INFO)
+  sys.stderr = StreamToLogger(logging.getLogger('STDERR'), logging.ERROR)
   logfile = 'windowopener.log' if not cmdline.logfile else cmdline.logfile
 
 if cmdline.debug:
   logging.basicConfig(filename=logfile, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 else:
   logging.basicConfig(filename=logfile, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+if not has_console:
+  logging.info('Running from pythonw, capturing all STDOUT/STDERR to log')
 
 config = Config()
 config.load()
@@ -97,23 +105,28 @@ def post_lowlevel(method):
     abort(500, 'Corrupt request')
   else:
     ep = LocalEndpoint('req')
-    if method == Action.ACTION_EXECUTE:
-      ret['result'] = ep.execute(j['options'], j['arguments'])
-      if ret['result'] == -1:
-        ret['result'] = None
-    elif method == Action.ACTION_DELAY:
-      logging.info('Ignoring delay method')
+    try:
+      if method == Action.ACTION_EXECUTE:
+        ret['result'] = ep.execute(j['options'], j['arguments'])
+        if ret['result'] == -1:
+          ret['result'] = None
+      elif method == Action.ACTION_DELAY:
+        logging.info('Ignoring delay method')
+        ret['result'] = False
+      elif method == Action.ACTION_KILL_APP:
+        ret['result'] = ep.kill_app(j['options'], j['arguments'][0])
+      elif method == Action.ACTION_KILL_PID:
+        ret['result'] = ep.kill_pid(j['options'], j['arguments'][0])
+      elif method == Action.ACTION_CLOSE_WINDOW:
+        ret['result'] = ep.close_window(j['options'], j['arguments'][0])
+      elif method == Action.ACTION_FOCUS:
+        ret['result'] = ep.focus(j['options'], j['arguments'][0])
+      elif method == Action.ACTION_MOUSE_MOVE:
+        ret['result'] = ep.mouse_move(j['options'], j['arguments'][0], j['arguments'][1])
+    except:
+      logging.exception(f'Failed to execute "{method}" with arguments {j["arguments"]} and options {j["options"]}')
       ret['result'] = False
-    elif method == Action.ACTION_KILL_APP:
-      ret['result'] = ep.kill_app(j['options'], j['arguments'][0])
-    elif method == Action.ACTION_KILL_PID:
-      ret['result'] = ep.kill_pid(j['options'], j['arguments'][0])
-    elif method == Action.ACTION_CLOSE_WINDOW:
-      ret['result'] = ep.close_window(j['options'], j['arguments'][0])
-    elif method == Action.ACTION_FOCUS:
-      ret['result'] = ep.focus(j['options'], j['arguments'][0])
-    elif method == Action.ACTION_MOUSE_MOVE:
-      ret['result'] = ep.mouse_move(j['options'], j['arguments'][0], j['arguments'][1])
+
   result = jsonify(ret)
   result.status_code = 200
   return result
@@ -152,7 +165,10 @@ systray = Menu(onReload, lambda _: running.release(), onAbout)
 if has_console:
   server.run()
 else:
+  logging.debug('Starting web server')
   server.start()
+  logging.debug('Starting systray icon')
   systray.start()
+  logging.debug('WindowOpener ready')
   running.acquire()
 logging.info('Window Opener terminating gracefully')

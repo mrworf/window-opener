@@ -1,6 +1,6 @@
 # window-opener
 TL;DR
-Allows for a REST API to control a windows install.
+Allows for a REST API to control a windows machine.
 
 Server which exposes two REST API end-points, one to allow starting and stopping
 of "programs" and one which allows lowlevel manipulation.
@@ -32,11 +32,13 @@ Unlike AutoIt and other automation tools, this provides three crucial features (
 - Python 3.8 (may work with lower, not tested)
 - Windows 10 (may work with lower, not tested)
 
+Python modules:
 - Flask
 - Requests
 - psutil
 - pywin32
 - pyyaml
+- pycaw
 
 # Configuration
 
@@ -121,10 +123,12 @@ They take the form of
 method: <method>
 endpoint: <defined endpoint>
 arguments: <parameters for the method>
+options: <options for the method, may not be needed for some>
 ```
 
-`Method` can be one of
-- execute
+#### Method
+This is what we're going to do and the key can be set to one of the following
+##### execute
   Will run an application with possible arguments.
   All arguments MUST be broken down into individual lines.
   So `myapp.exe arg1 arg2 "arg 3"` would translate to
@@ -134,53 +138,77 @@ arguments: <parameters for the method>
   - arg2
   - arg 3
   ```
-- delay
+##### delay
   Delays execution with the number of seconds provided in `arguments`
   This can be a fractional value for sub 1 second delays
-- close window
+
+_Options_
+- `orhasaudio` (boolean, default `false`)
+  If true, the delay will cancel the moment you have a default audio pathway. Useful for when your PC might not initially have HDMI and you need to wait for it to negotiate. Setting delay to zero will mean that it will only stop the delay if audio is detected.
+
+##### close window
   Closes a specified window (provided by arguments) or if blank,
   will close the current active window.
 
-  This method takes a few options:
-  - waitforit: When true, will delay next action until the window is created (and then closed)
-  - whenactive: If true, will delay next action until the window is the active window (and then close it)
-  - maxwait: Maximum of time to wait for above options (in seconds). Default is forever
+_Options_
+- `waitforit` (boolean, default `false`)
+  When true, will delay next action until the window is created (and then closed)
+- `whenactive`  (boolean, default `false`)
+  If true, will delay next action until the window is the active window (and then close it)
+- `maxwait`  (integer, default `0`)
+  Maximum of time to wait for above options (in seconds). A value of zero means forever
 
-- kill app
-  Kills all instances of an application defined by the `arguments`.
-  Use task manager (details tab) to locate the name of the application you wish
-  to terminate. If multiple instances are found with the same name, ALL of them will
-  be terminated.
-- kill pid
-  Kills a specific pid (program id). This is available for use, but hard to use manually
-  since the PID changes with every run.
-- sendkeys
-  Sends a number of keys to the currently active window. See https://docs.microsoft.com/en-us/dotnet/api/system.windows.forms.sendkeys?view=net-5.0 for details on how this works.
-  Please note that to use curly braces, you must type them twice to avoid having the substituion kick in.
-  And since the YAML standard allow use of curly braces as well, you must enclose it with quotation marks.
-  This means that in order to sennd ENTER (`{ENTER}`) you must write `"{{ENTER}}"` or it will not work.
-  You don't have to do `sendkeys` per key, you can have it send entire strings at a time.
-- focus
-  Sets focus to the defined window. It will also bring it to the front.
-  Note that if the window is minimized, it will only get focus, it will not be visible.
+##### kill app
+Kills all instances of an application defined by the `arguments`.
+Use task manager (details tab) to locate the name of the application you wish
+to terminate. If multiple instances are found with the same name, ALL of them will
+be terminated.
 
-  This method takes a few options:
-  - waitforit: When true, will delay next action until the window is created (and then closed)
-  - maxwait: Maximum of time to wait for above options (in seconds). Default is forever
-  - maximize: When true, will also maximize the window to take the entire screen
-  - restore: When true, restores the window. If it was minimized, it will show up in the last known position and size, if it's maximized, it will revert to last known size and position.
+##### kill pid
+Kills a specific pid (program id). This is available for use, but hard to use manually
+since the PID changes with every run.
 
-  Note, maximize and restore are mutually exclusive with maximize taking priority over restore.
+##### sendkeys
+Sends a number of keys to the currently active window. See https://docs.microsoft.com/en-us/dotnet/api/system.windows.forms.sendkeys?view=net-5.0 for details on how this works.
+Please note that to use curly braces, you must type them twice to avoid having the substituion kick in. And since the YAML standard allow use of curly braces as well, you must enclose it with quotation marks. This means that in order to sennd ENTER (`{ENTER}`) you must write `"{{ENTER}}"` or it will not work. You don't have to do `sendkeys` per key, you can have it send entire strings at a time.
 
+##### focus
+Sets focus to the defined window. It will also bring it to the front. Note that if the window is minimized, it will only get focus, it will not be visible.
 
+_Options_
+- `waitforit` (boolean, default `false`)
+  When true, will delay next action until the window is created (and then closed)
+- `whenvisible`  (boolean, default `false`)
+  When true, wait for the window to become visible.
+- `wheniconic`  (boolean, default `false`)
+  When true, wait for the window to be minimized.
+- `maxwait`  (integer, default `0`)
+  Maximum of time to wait for `waitforit`, `whenvisible` and `wheniconic` (in seconds). A value of zero means forever.
+- `maximize`  (boolean, default `false`)
+  When true, will maximize the window to take the entire screen once focus is gained
+- `restore`  (boolean, default `false`)
+  When true, restores the window. If it was minimized, it will show up in the last known position and size, if it's maximized, it will revert to last known size and position. This only happens once focus is gained.
 
-`endpoint` specifies where to perform the defined action. If omitted, `local` is assumed,
-meaning it will run on the computer which is hosting this service.
-Any endpoint you want to use MUST be defined in the `endpoints` section above, with `local` being
-the only exception.
+Note, `maximize` and `restore` are mutually exclusive with `maximize` taking priority over `restore`.
 
-`arguments` can either be a single value like `arguments: 5` or `arguments: "some string"`
-or a list of arguments, like in the case of `method: execute`
+#### mouse move
+Moves the mouse pointer to a select position defined by two arguments (first being X, second being Y).
+
+_Options_
+- `leftclick` (integer, default `0`)
+  Number of times to left click after moving
+- `rightclick` (integer, default `0`)
+  Number of times to right click after moving
+
+#### endpoint
+Specifies where to perform the defined action. If omitted, `local` is assumed, meaning it will run on the computer which is hosting this service.
+Any endpoint you want to use MUST be defined in the `endpoints` section above, with `local` being the only exception.
+
+#### arguments
+This field depends on the `method`. Can either be a single value like `arguments: 5` or `arguments: "some string"` or a list of arguments, like in the case of `method: execute`
+
+#### options
+This field depends on the `method`. See above.
 
 ## Special considerations
 
@@ -366,7 +394,6 @@ the PID it got on launch. A neat way to avoid shutting down other chrome instanc
 # The future
 
 - Allow reload of `config.yml` and `secrets.yml` via REST API
-- Log to file instead of stdout
 
 Obviously this is just scraping the surface. There's many improvements that can be done, like activating windows based on name or waiting for a window to show up, etc. But until there's a need for it, it's not likely to get implemented.
 

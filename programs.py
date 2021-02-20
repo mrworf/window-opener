@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with window-opener.  If not, see <http://www.gnu.org/licenses/>.
 #
-import time
 import logging
 
 from endpoints import LocalEndpoint, RemoteEndpoint
@@ -154,7 +153,7 @@ class Action:
       else:
         self.pid = ret
     elif self.method == Action.ACTION_DELAY:
-      time.sleep(float(*self.arguments[0]))
+      self.endpoint.delay(self.options, *self.arguments[0])
     elif self.method == Action.ACTION_KILL_APP:
       self.endpoint.kill_app(self.options, *self.arguments[0])
     elif self.method == Action.ACTION_KILL_PID:

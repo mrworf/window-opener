@@ -1,0 +1,64 @@
+# Example of how to use parsec to connect to a computer running steam
+#
+# Requires the following parameters:
+# - steam_exe: Location of the steam.exe
+# - parsec_exe: Location of the parsecd.exe
+# - peerid: Which parsec server to connect to
+#
+start:
+  - method: delay
+    arguments: 30
+    options:
+      orhasaudio: True
+  - method: execute
+    arguments:
+    - {parsec_exe}
+    - peer_id={peerid}:client_windowed=0:client_overlay=0:client_immersive=1
+  # We must delay here to allow parsec
+  # to take over the display on the remote
+  # or you get artifacts
+  - method: delay
+    arguments: 4
+  - method: execute
+    endpoint: remote
+    arguments:
+    - {steam_exe}
+    - -start
+    - steam://open/bigpicture
+stop:
+  - method: close window
+    arguments: Parsec
+
+  - method: close window
+    endpoint: remote
+
+  - method: delay
+    arguments: 1
+
+  - method: kill app
+    arguments: parsecd.exe
+    options:
+      waitforit: True
+      maxwait: 5
+
+  - method: delay
+    arguments: 1
+
+  - method: close window
+    endpoint: remote
+    arguments: Steam
+    options:
+      waitforit: True
+      maxwait: 5
+  # Second close command, since you might
+  # end up with the regular steam window
+  # on your remote otherwise.
+  - method: delay
+    arguments: 1
+
+  - method: close window
+    endpoint: remote
+    arguments: Steam
+    options:
+      whenactive: True
+      maxwait: 1

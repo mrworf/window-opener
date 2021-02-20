@@ -23,6 +23,7 @@ import win32com.client
 import pythoncom
 import logging
 import time
+from pycaw.pycaw import AudioUtilities
 
 class LocalEndpoint:
   def __init__(self, name, url = None, token = None):
@@ -63,6 +64,17 @@ class LocalEndpoint:
       result = checkFunc(userData)
     return result
 
+  def _hasAudio(self):
+    try:
+      device = AudioUtilities.GetSpeakers()
+      if device.GetState() != 1:
+        # Current default audio device is not active
+        return False
+      return True
+    except:
+      # No default audio path available
+      return False
+
   def close_window(self, options, window=None):
     ret = False
     logging.debug(f'close_window({window})')
@@ -70,7 +82,7 @@ class LocalEndpoint:
       handle = win32gui.FindWindow(None, window)
       if not handle and options.get('waitforit', False):
         logging.info(f'Waiting for "{window}" to appear')
-        handle = self._wait_for_it(options.get('maxwait', 0), win32gui.FindWindow, window)
+        handle = self._wait_for_it(options.get('maxwait', 0), lambda wnd: win32gui.FindWindow(None, wnd), window)
         if not handle:
           logging.info(f'Timed out waiting for window "{window}" to appear.')
 
@@ -128,7 +140,7 @@ class LocalEndpoint:
       handle = win32gui.FindWindow(None, window)
       if not handle and options.get('waitforit', False):
         logging.info(f'Waiting for "{window}" to appear')
-        handle = self._wait_for_it(options.get('maxwait', 0), win32gui.FindWindow, window)
+        handle = self._wait_for_it(options.get('maxwait', 0), lambda wnd: win32gui.FindWindow(None, wnd), window)
         if not handle:
           logging.info(f'Timed out waiting for window "{window}" to appear.')
 
@@ -177,6 +189,15 @@ class LocalEndpoint:
       win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP,x,y,0,0)
     return True
 
+  def delay(self, options, duration):
+    duration = float(duration)
+    if options.get('orhasaudio', False):
+      if self._wait_for_it(duration, self._hasAudio):
+        logging.debug('Audio device available, early end to delay')
+    else:
+      time.sleep(duration)
+    return True
+
 class RemoteEndpoint:
   def __init__(self, name, url, token):
     self.name = name
@@ -184,18 +205,18 @@ class RemoteEndpoint:
     self.token = token
 
   def _remote_call(self, method, options, *arguments):
-    r = requests.post(f'{self.url}/lowlevel/{method}', json={'arguments': [*arguments], 'options': options, 'token' : self.token})
-    if 'result' in r.json():
-      return r.json()['result']
+    try:
+      r = requests.post(f'{self.url}/lowlevel/{method}', json={'arguments': [*arguments], 'options': options, 'token' : self.token})
+      if 'result' in r.json():
+        return r.json()['result']
+    except:
+      logging.exception(f'Remote call to {self.url}/lowlevel/{method} failed')
     return False
 
   def execute(self, options, cmdline):
-    try:
-      logging.debug(f'Starting {cmdline}')
-      return self._remote_call('execute', options, *cmdline)
-    except:
-      logging.error(f'Failed to launch {cmdline}')
-    return -1
+    logging.debug(f'Starting {cmdline}')
+    ret = self._remote_call('execute', options, *cmdline)
+    return -1 if ret == False else ret
 
   def kill_pid(self, options, pid):
     if pid > 0:
